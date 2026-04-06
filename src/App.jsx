@@ -3,13 +3,14 @@ import { io } from 'socket.io-client';
 import Lobby from './components/Lobby';
 import WaitingRoom from './components/WaitingRoom';
 import GameTable from './components/GameTable';
+import LandscapeGuard from './components/LandscapeGuard';
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:4000';
 
 export default function App() {
   const socketRef = useRef(null);
   const [connected, setConnected] = useState(false);
-  const [screen, setScreen] = useState('lobby'); // lobby | waiting | game
+  const [screen, setScreen] = useState('lobby');
   const [roomState, setRoomState] = useState(null);
   const [myId, setMyId] = useState(null);
   const [error, setError] = useState(null);
@@ -23,7 +24,6 @@ export default function App() {
     socket.on('connect', () => {
       setConnected(true);
       setMyId(socket.id);
-      // Try reconnect
       const savedCode = sessionStorage.getItem('dsg_room_code');
       const savedName = sessionStorage.getItem('dsg_player_name');
       if (savedCode && savedName) {
@@ -50,17 +50,7 @@ export default function App() {
       else if (state.status === 'lobby') setScreen('waiting');
     });
 
-    socket.on('declarationMade', ({ playerId, result }) => {
-      // Handled via stateUpdate
-    });
-
-    socket.on('playerDropped', ({ playerId, penalty }) => {
-      // Shown via stateUpdate
-    });
-
     socket.on('chatMessage', ({ name, message, ts }) => {
-      // bubble up to game table
-      window._dsgChatMsg = { name, message, ts };
       window.dispatchEvent(new CustomEvent('dsg_chat', { detail: { name, message, ts } }));
     });
 
@@ -101,49 +91,50 @@ export default function App() {
     setMyCode('');
   }
 
-  // Use socket.id as myId, but refresh after reconnect
   const effectiveMyId = socketRef.current?.id || myId;
 
   return (
-    <div>
-      {/* Connection banner */}
-      {!connected && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
-          background: '#c0392b', color: '#fff', textAlign: 'center',
-          padding: '8px', fontSize: 13, fontWeight: 500,
-        }}>
-          ⚡ Reconnecting to server...
-        </div>
-      )}
+    <LandscapeGuard>
+      <div>
+        {/* Connection banner */}
+        {!connected && (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
+            background: '#c0392b', color: '#fff', textAlign: 'center',
+            padding: '8px', fontSize: 13, fontWeight: 500,
+          }}>
+            ⚡ Reconnecting to server...
+          </div>
+        )}
 
-      {/* Error toast */}
-      {error && (
-        <div className="toast" style={{ background: '#c0392b', borderColor: '#e74c3c' }}>
-          ❌ {error}
-        </div>
-      )}
+        {/* Error toast */}
+        {error && (
+          <div className="toast" style={{ background: '#c0392b', borderColor: '#e74c3c' }}>
+            ❌ {error}
+          </div>
+        )}
 
-      {screen === 'lobby' && (
-        <Lobby onCreateRoom={handleCreateRoom} onJoinRoom={handleJoinRoom} />
-      )}
+        {screen === 'lobby' && (
+          <Lobby onCreateRoom={handleCreateRoom} onJoinRoom={handleJoinRoom} />
+        )}
 
-      {screen === 'waiting' && roomState && (
-        <WaitingRoom
-          state={roomState}
-          myId={effectiveMyId}
-          onStart={handleStart}
-          onLeave={handleLeave}
-        />
-      )}
+        {screen === 'waiting' && roomState && (
+          <WaitingRoom
+            state={roomState}
+            myId={effectiveMyId}
+            onStart={handleStart}
+            onLeave={handleLeave}
+          />
+        )}
 
-      {screen === 'game' && roomState && (
-        <GameTable
-          state={roomState}
-          myId={effectiveMyId}
-          emit={emit}
-        />
-      )}
-    </div>
+        {screen === 'game' && roomState && (
+          <GameTable
+            state={roomState}
+            myId={effectiveMyId}
+            emit={emit}
+          />
+        )}
+      </div>
+    </LandscapeGuard>
   );
 }
